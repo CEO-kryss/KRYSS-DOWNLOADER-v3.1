@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KRYSS · Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg:        #080a0f;
+            --surface:   #0e1118;
+            --border:    #1e2330;
+            --accent:    #3b82f6;
+            --accent2:   #06d6a0;
+            --danger:    #ef4444;
+            --text:      #e8eaf0;
+            --muted:     #5a6380;
+            --card-bg:   #111520;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Syne', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ─── Background grid ─── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(59,130,246,.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59,130,246,.04) 1px, transparent 1px);
+            background-size: 48px 48px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ─── Glow blob ─── */
+        .blob {
+            position: fixed;
+            width: 600px; height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(59,130,246,.12) 0%, transparent 70%);
+            top: -150px; left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 0;
+            animation: pulse 6s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%,100% { transform: translateX(-50%) scale(1); opacity: .8; }
+            50%      { transform: translateX(-50%) scale(1.15); opacity: 1; }
+        }
+
+        /* ─── Layout ─── */
+        .wrapper {
+            position: relative;
+            z-index: 1;
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 60px 20px 80px;
+        }
+
+        /* ─── Header ─── */
+        header { text-align: center; margin-bottom: 52px; }
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 6px 18px 6px 10px;
+            font-family: 'DM Mono', monospace;
+            font-size: .72rem;
+            color: var(--accent2);
+            letter-spacing: .08em;
+            margin-bottom: 28px;
+        }
+        .logo-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent2);
+            animation: blink 1.4s ease-in-out infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+        h1 {
+            font-size: clamp(2.4rem, 6vw, 4rem);
+            font-weight: 800;
+            letter-spacing: -.03em;
+            line-height: 1.05;
+        }
+        h1 span { color: var(--accent); }
+        .sub {
+            margin-top: 14px;
+            color: var(--muted);
+            font-size: .95rem;
+            font-weight: 400;
+            letter-spacing: .02em;
+        }
+
+        /* ─── Card ─── */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            backdrop-filter: blur(4px);
+        }
+
+        /* ─── Input Row ─── */
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+        .url-input {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            color: var(--text);
+            font-family: 'DM Mono', monospace;
+            font-size: .88rem;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .url-input::placeholder { color: var(--muted); }
+        .url-input:focus { border-color: var(--accent); }
+
+        .btn-analyze {
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            padding: 14px 26px;
+            color: #fff;
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: .9rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background .2s, transform .1s;
+        }
+        .btn-analyze:hover:not(:disabled) { background: #2563eb; }
+        .btn-analyze:active:not(:disabled) { transform: scale(.97); }
+        .btn-analyze:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* ─── Loading ─── */
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 14px;
+            margin-top: 28px;
+            padding: 20px;
+            background: var(--surface);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .loading.show { display: flex; }
+        .spinner {
+            width: 22px; height: 22px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-family: 'DM Mono', monospace; font-size: .82rem; color: var(--muted); }
+
+        /* ─── Error ─── */
+        .error-box {
+            display: none;
+            margin-top: 20px;
+            padding: 16px 20px;
+            background: rgba(239,68,68,.08);
+            border: 1px solid rgba(239,68,68,.3);
+            border-radius: 12px;
+            color: #fca5a5;
+            font-family: 'DM Mono', monospace;
+            font-size: .82rem;
+        }
+        .error-box.show { display: block; }
+
+        /* ─── Result ─── */
+        .result { display: none; margin-top: 28px; }
+        .result.show { display: block; animation: fadeUp .4s ease; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+        .divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin-bottom: 28px;
+        }
+
+        .video-meta {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+            margin-bottom: 28px;
+        }
+        .thumb-wrap {
+            flex-shrink: 0;
+            width: 200px;
+        }
+        .thumb-wrap img {
+            width: 100%;
+            border-radius: 12px;
+            display: block;
+            border: 1px solid var(--border);
+        }
+        .meta-info { flex: 1; min-width: 0; }
+        .video-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+        .meta-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 4px 12px;
+            font-family: 'DM Mono', monospace;
+            font-size: .72rem;
+            color: var(--muted);
+        }
+        .pill svg { width:11px; height:11px; flex-shrink:0; }
+
+        /* ─── Format Table ─── */
+        .formats-label {
+            font-size: .72rem;
+            font-family: 'DM Mono', monospace;
+            color: var(--muted);
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .format-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .format-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            transition: border-color .2s;
+        }
+        .format-row:hover { border-color: var(--accent); }
+
+        .format-res {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent2);
+            font-family: 'DM Mono', monospace;
+            min-width: 64px;
+        }
+        .format-details {
+            display: flex;
+            gap: 14px;
+            font-family: 'DM Mono', monospace;
+            font-size: .78rem;
+            color: var(--muted);
+        }
+        .tag {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 2px 8px;
+        }
+
+        .btn-dl {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: transparent;
+            border: 1px solid var(--accent);
+            border-radius: 9px;
+            padding: 8px 16px;
+            color: var(--accent);
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: .8rem;
+            text-decoration: none;
+            transition: background .2s, color .2s;
+            white-space: nowrap;
+        }
+        .btn-dl:hover {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-dl svg { width: 13px; height: 13px; }
+
+        /* ─── Footer ─── */
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            color: var(--muted);
+            font-family: 'DM Mono', monospace;
+            font-size: .72rem;
+        }
+
+        /* ─── Responsive ─── */
+        @media (max-width: 600px) {
+            .input-row { flex-direction: column; }
+            .video-meta { flex-direction: column; }
+            .thumb-wrap { width: 100%; }
+            .format-details { display: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="blob"></div>
+
+<div class="wrapper">
+    <header>
+        <div class="logo-badge">
+            <span class="logo-dot"></span>
+            KRYSS-DOWNLOADER · v3.1
+        </div>
+        <h1>Télécharge<br>en <span>haute qualité</span></h1>
+        <p class="sub">480p · 720p · 1080p — extraction directe sans redirection</p>
+    </header>
+
+    <div class="card">
+        <div class="input-row">
+            <input
+                type="text"
+                id="videoUrl"
+                class="url-input"
+                placeholder="https://www.youtube.com/watch?v=..."
+                onkeydown="if(event.key==='Enter') analyzeVideo()"
+            >
+            <button class="btn-analyze" onclick="analyzeVideo()" id="btnAnalyze">
+                Analyser
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <span class="loading-text">Extraction des métadonnées en cours...</span>
+        </div>
+
+        <div class="error-box" id="errorBox"></div>
+
+        <div class="result" id="result">
+            <hr class="divider">
+
+            <div class="video-meta">
+                <div class="thumb-wrap">
+                    <img id="videoThumb" src="" alt="Miniature">
+                </div>
+                <div class="meta-info">
+                    <div class="video-title" id="videoTitle"></div>
+                    <div class="meta-pills" id="metaPills"></div>
+                </div>
+            </div>
+
+            <div class="formats-label">Formats disponibles</div>
+            <div class="format-grid" id="formatList"></div>
+            <div class="formats-label" style="margin-top: 32px; color: var(--accent2);">Pistes Audio (Haute Qualité)</div>
+            <div class="format-grid" id="audioList">
+
+            </div>
+            <div class="formats-label" style="margin-top: 32px; color: var(--accent2); display: flex; justify-content: space-between; align-items: center;">
+            Pistes Audio (Haute Qualité)
+            <button onclick="toggleHelp()" style="background:none; border:1px solid var(--muted); color:var(--muted); border-radius:4px; font-size:10px; cursor:pointer; padding:2px 6px;">Besoin d'aide ?</button>
+            </div>
+
+            <div id="vlcHelp" style="display:none; background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; padding: 15px; margin-bottom: 15px; font-size: 0.8rem; color: var(--muted);">
+                <p style="color: var(--accent2); margin-bottom: 8px; font-weight: bold;">🛠️ Comment lier l'audio (VLC) :</p>
+                <ol style="margin-left: 15px; line-height: 1.6;">
+                <li>Télécharge la vidéo <b>1080p</b> et la meilleure <b>piste audio</b>.</li>
+                <li>Ouvre VLC > <b>Média</b> > <b>Ouvrir plusieurs fichiers...</b></li>
+                <li>Ajoute ta vidéo, coche <b>"Afficher plus d'options"</b>.</li>
+                <li>Coche <b>"Lire un autre média..."</b> et ajoute ton fichier audio.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <footer>Projet universitaire · usage personnel uniquement</footer>
+</div>
+
+<script>
+    function formatDuration(sec) {
+        if (!sec) return null;
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+        return `${m}:${String(s).padStart(2,'0')}`;
+    }
+
+    function formatViews(n) {
+        if (!n) return null;
+        if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M vues';
+        if (n >= 1_000) return Math.round(n / 1_000) + 'K vues';
+        return n + ' vues';
+    }
+
+    function iconDownload() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+    }
+
+    async function analyzeVideo() {
+        const url = document.getElementById('videoUrl').value.trim();
+        const btn = document.getElementById('btnAnalyze');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const errorBox = document.getElementById('errorBox');
+
+        if (!url) {
+            errorBox.textContent = 'Colle d\'abord un lien YouTube valide.';
+            errorBox.classList.add('show');
+            return;
+        }
+
+        btn.disabled = true;
+        loading.classList.add('show');
+        result.classList.remove('show');
+        errorBox.classList.remove('show');
+
+        const formData = new FormData();
+        formData.append('url', url);
+
+        try {
+            const response = await fetch('/get_formats', { method: 'POST', body: formData });
+            const data = await response.json();
+
+            if (data.error) throw new Error(data.error);
+
+            // Titre
+            document.getElementById('videoTitle').textContent = data.title || 'Titre inconnu';
+
+            // Miniature
+            document.getElementById('videoThumb').src = data.thumbnail || '';
+
+            // Pills de métadonnées
+            const pills = document.getElementById('metaPills');
+            pills.innerHTML = '';
+            const dur = formatDuration(data.duration);
+            const views = formatViews(data.view_count);
+            if (dur)   pills.innerHTML += `<span class="pill">${dur}</span>`;
+            if (views) pills.innerHTML += `<span class="pill">${views}</span>`;
+            if (data.uploader) pills.innerHTML += `<span class="pill">${data.uploader}</span>`;
+
+            // Formats
+            const list = document.getElementById('formatList');
+            list.innerHTML = '';
+
+            if (!data.formats || data.formats.length === 0) {
+                list.innerHTML = '<p style="color:var(--muted);font-size:.85rem">Aucun format disponible.</p>';
+            } else {
+                // 1. Remplissage des formats VIDÉO
+const list = document.getElementById('formatList');
+list.innerHTML = '';
+
+if (!data.formats || data.formats.length === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:.85rem">Aucun format disponible.</p>';
+} else {
+    data.formats.forEach(f => {
+        const isVideoOnly = f.type === 'video_only';
+        list.innerHTML += `
+            <div class="format-row">
+                <span class="format-res">${f.resolution}</span>
+                <div class="format-details">
+                    <span class="tag">${f.ext.toUpperCase()}</span>
+                    <span class="tag">${f.filesize}</span>
+                    ${isVideoOnly ? `<span class="tag" style="color:#f59e0b;border-color:#f59e0b55">⚠ Vidéo seule</span>` : `<span class="tag" style="color:var(--accent2);border-color:var(--accent2)">✅ Complet</span>`}
+                </div>
+                <a href="${f.url}" target="_blank" rel="noopener" class="btn-dl">
+                    ${iconDownload()} Télécharger
+                </a>
+            </div>
+        `;
+    });
+}
+
+// 2. NOUVEAU : Remplissage des pistes AUDIO (Mode Pro 3.1)
+const audioList = document.getElementById('audioList');
+audioList.innerHTML = "";
+
+if (data.audios && data.audios.length > 0) {
+    data.audios.forEach(a => {
+        audioList.innerHTML += `
+            <div class="format-row" style="border-color: rgba(6, 214, 160, 0.2)">
+                <span class="format-res" style="color: var(--accent2); font-size: 0.85rem;">🎵 ${a.quality}</span>
+                <div class="format-details">
+                    <span class="tag">${a.ext.toUpperCase()}</span>
+                    <span class="tag">${a.size}</span>
+                </div>
+                <a href="${a.url}" target="_blank" rel="noopener" class="btn-dl" style="border-color: var(--accent2); color: var(--accent2)">
+                    ${iconDownload()} Audio seul
+                </a>
+            </div>
+        `;
+    });
+} else {
+    audioList.innerHTML = '<p style="color:var(--muted);font-size:.85rem">Aucune piste audio séparée trouvée.</p>';
+}
+            }
+
+            result.classList.add('show');
+        } catch (err) {
+            errorBox.textContent = 'Erreur : ' + err.message;
+            errorBox.classList.add('show');
+        } finally {
+            btn.disabled = false;
+            loading.classList.remove('show');
+        }
+    }
+
+function toggleHelp() {
+    const help = document.getElementById('vlcHelp');
+    help.style.display = help.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+</body>
+</html>
